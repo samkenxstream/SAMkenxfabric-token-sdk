@@ -116,7 +116,7 @@ func (n *Network) EnvelopeExists(id string) bool {
 	return n.n.EnvelopeService().Exists(id)
 }
 
-func (n *Network) Broadcast(blob interface{}) error {
+func (n *Network) Broadcast(context context.Context, blob interface{}) error {
 	var err error
 	switch b := blob.(type) {
 	case driver.Envelope:
@@ -247,6 +247,11 @@ func (n *Network) LookupTransferMetadataKey(namespace string, startingTxID strin
 
 func (n *Network) Ledger() (driver.Ledger, error) {
 	return n.ledger, nil
+}
+
+func (n *Network) ProcessNamespace(namespace string) error {
+	// Not supported
+	return nil
 }
 
 type nv struct {

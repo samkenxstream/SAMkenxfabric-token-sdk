@@ -142,7 +142,7 @@ func (s *Service) issuerWallet(id interface{}) (driver.IssuerWallet, error) {
 	}
 	newWallet := newIssuerWallet(s, wID, idInfoIdentity)
 	s.IssuerWalletsRegistry.RegisterWallet(wID, newWallet)
-	if err := s.IssuerWalletsRegistry.RegisterIdentity(idInfoIdentity, wID); err != nil {
+	if err := s.IssuerWalletsRegistry.RegisterIdentity(idInfoIdentity, wID, nil); err != nil {
 		return nil, errors.WithMessagef(err, "programming error, failed to register recipient identity [%s]", wID)
 	}
 	logger.Debugf("created issuer wallet [%s]", wID)
@@ -177,7 +177,7 @@ func (s *Service) auditorWallet(id interface{}) (driver.AuditorWallet, error) {
 	}
 	newWallet := newAuditorWallet(s, wID, idInfoIdentity)
 	s.AuditorWalletsRegistry.RegisterWallet(wID, newWallet)
-	if err := s.AuditorWalletsRegistry.RegisterIdentity(idInfoIdentity, wID); err != nil {
+	if err := s.AuditorWalletsRegistry.RegisterIdentity(idInfoIdentity, wID, nil); err != nil {
 		return nil, errors.WithMessagef(err, "programming error, failed to register recipient identity [%s]", wID)
 	}
 	logger.Debugf("created auditor wallet [%s]", wID)
@@ -230,8 +230,18 @@ func newOwnerWallet(tokenService *Service, id string, identityInfo driver.Identi
 		identityInfo: identityInfo,
 	}
 	tokenService.OwnerWalletsRegistry.RegisterWallet(id, w)
-	w.cache = idemix.NewWalletIdentityCache(w.getRecipientIdentity, idemix.DefaultCacheSize)
-	logger.Debugf("added wallet cache for id %s with cache of size %d", id+"@"+identityInfo.EnrollmentID(), idemix.DefaultCacheSize)
+
+	cacheSize := 0
+	tmsConfig := tokenService.ConfigManager().TMS()
+	conf := tmsConfig.GetOwnerWallet(id)
+	if conf == nil {
+		cacheSize = tmsConfig.GetWalletDefaultCacheSize()
+	} else {
+		cacheSize = conf.CacheSize
+	}
+
+	w.cache = idemix.NewWalletIdentityCache(w.getRecipientIdentity, cacheSize)
+	logger.Debugf("added wallet cache for id %s with cache of size %d", id+"@"+identityInfo.EnrollmentID(), cacheSize)
 	return w
 }
 
@@ -265,7 +275,7 @@ func (w *ownerWallet) getRecipientIdentity() (view.Identity, error) {
 	}
 
 	// Register the pseudonym
-	if err := w.tokenService.OwnerWalletsRegistry.RegisterIdentity(pseudonym, w.id); err != nil {
+	if err := w.tokenService.OwnerWalletsRegistry.RegisterIdentity(pseudonym, w.id, nil); err != nil {
 		return nil, errors.WithMessagef(err, "failed storing recipient identity in wallet [%s]", w.ID())
 	}
 	return pseudonym, nil

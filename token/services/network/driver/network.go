@@ -56,7 +56,7 @@ type Network interface {
 	EnvelopeExists(id string) bool
 
 	// Broadcast sends the passed blob to the network
-	Broadcast(blob interface{}) error
+	Broadcast(context context.Context, blob interface{}) error
 
 	// IsFinalForParties takes in input a transaction id and an array of identities.
 	// The identities are contacted to gather information about the finality of the
@@ -114,4 +114,7 @@ type Network interface {
 
 	// Ledger gives access to the remote ledger
 	Ledger() (Ledger, error)
+
+	// ProcessNamespace indicates to the commit pipeline to process all transaction in the passed namespace
+	ProcessNamespace(namespace string) error
 }

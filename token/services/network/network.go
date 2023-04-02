@@ -344,12 +344,12 @@ func (n *Network) ExistTransient(id string) bool {
 }
 
 // Broadcast sends the given blob to the network
-func (n *Network) Broadcast(blob interface{}) error {
+func (n *Network) Broadcast(context context.Context, blob interface{}) error {
 	switch b := blob.(type) {
 	case *Envelope:
-		return n.n.Broadcast(b.e)
+		return n.n.Broadcast(context, b.e)
 	default:
-		return n.n.Broadcast(b)
+		return n.n.Broadcast(context, b)
 	}
 }
 
@@ -461,6 +461,10 @@ func (n *Network) Ledger(namespace string) (*Ledger, error) {
 		return nil, err
 	}
 	return &Ledger{l: l}, nil
+}
+
+func (n *Network) ProcessNamespace(namespace string) error {
+	return n.n.ProcessNamespace(namespace)
 }
 
 // Provider returns an instance of network provider

@@ -132,6 +132,8 @@ func (m *CheckTTXDBView) Call(context view.Context) (interface{}, error) {
 				errorMessages = append(errorMessages, fmt.Sprintf("failed to get ledger transaction status for [%s]: [%s]", transactionRecord.TxID, err))
 			}
 			errorMessages = append(errorMessages, fmt.Sprintf("transaction record [%s] is unknown for vault but not for the ledger [%d]", transactionRecord.TxID, lVC))
+		case vc == network.Busy && lVC == network.Busy:
+			// this is fine, let's continue
 		case vc == network.Busy && lVC != network.Unknown:
 			if err != nil {
 				errorMessages = append(errorMessages, fmt.Sprintf("failed to get ledger transaction status for [%s]: [%s]", transactionRecord.TxID, err))
@@ -149,36 +151,37 @@ func (m *CheckTTXDBView) Call(context view.Context) (interface{}, error) {
 		assert.NotNil(htlcWallet, "cannot load htlc wallet")
 		assert.NoError(htlcWallet.DeleteClaimedSentTokens(context), "failed to delete claimed sent tokens")
 		assert.NoError(htlcWallet.DeleteExpiredReceivedTokens(context), "failed to delete expired received tokens")
+	}
 
-		uit, err := v.UnspentTokensIterator()
-		assert.NoError(err, "failed to get unspent tokens")
-		defer uit.Close()
-		var unspentTokenIDs []*token2.ID
-		for {
-			tok, err := uit.Next()
-			assert.NoError(err, "failed to get next unspent token")
-			if tok == nil {
-				break
+	// check unspent tokens
+	uit, err := v.UnspentTokensIterator()
+	assert.NoError(err, "failed to get unspent tokens")
+	defer uit.Close()
+	var unspentTokenIDs []*token2.ID
+	for {
+		tok, err := uit.Next()
+		assert.NoError(err, "failed to get next unspent token")
+		if tok == nil {
+			break
+		}
+		unspentTokenIDs = append(unspentTokenIDs, tok.Id)
+	}
+	ledgerTokenContent, err := net.QueryTokens(context, tms.Namespace(), unspentTokenIDs)
+	if err != nil {
+		errorMessages = append(errorMessages, fmt.Sprintf("[ow:%s] failed to query tokens: [%s]", defaultOwnerWallet.ID(), err))
+	} else {
+		assert.Equal(len(unspentTokenIDs), len(ledgerTokenContent))
+		index := 0
+		assert.NoError(v.TokenVault().QueryEngine().GetTokenOutputs(unspentTokenIDs, func(id *token2.ID, tokenRaw []byte) error {
+			if !bytes.Equal(ledgerTokenContent[index], tokenRaw) {
+				errorMessages = append(errorMessages, fmt.Sprintf("[ow:%s] token content does not match at [%d], [%s]!=[%s]",
+					defaultOwnerWallet.ID(),
+					index,
+					hash.Hashable(ledgerTokenContent[index]), hash.Hashable(tokenRaw)))
 			}
-			unspentTokenIDs = append(unspentTokenIDs, tok.Id)
-		}
-		ledgerTokenContent, err := net.QueryTokens(context, tms.Namespace(), unspentTokenIDs)
-		if err != nil {
-			errorMessages = append(errorMessages, fmt.Sprintf("[ow:%s] failed to query tokens: [%s]", defaultOwnerWallet.ID(), err))
-		} else {
-			assert.Equal(len(unspentTokenIDs), len(ledgerTokenContent))
-			index := 0
-			assert.NoError(v.TokenVault().QueryEngine().GetTokenOutputs(unspentTokenIDs, func(id *token2.ID, tokenRaw []byte) error {
-				if !bytes.Equal(ledgerTokenContent[index], tokenRaw) {
-					errorMessages = append(errorMessages, fmt.Sprintf("[ow:%s] token content do not match at [%d], [%s]!=[%s]",
-						defaultOwnerWallet.ID(),
-						index,
-						hash.Hashable(ledgerTokenContent[index]), hash.Hashable(tokenRaw)))
-				}
-				index++
-				return nil
-			}), "failed to match ledger token content with local")
-		}
+			index++
+			return nil
+		}), "failed to match ledger token content with local")
 	}
 
 	return errorMessages, nil

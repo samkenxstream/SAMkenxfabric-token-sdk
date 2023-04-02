@@ -200,8 +200,8 @@ func (n *Network) EnvelopeExists(id string) bool {
 	return n.ch.EnvelopeService().Exists(id)
 }
 
-func (n *Network) Broadcast(blob interface{}) error {
-	return n.n.Ordering().Broadcast(blob)
+func (n *Network) Broadcast(context context.Context, blob interface{}) error {
+	return n.n.Ordering().Broadcast(context, blob)
 }
 
 func (n *Network) IsFinalForParties(id string, endpoints ...view.Identity) error {
@@ -420,4 +420,11 @@ func (n *Network) LookupTransferMetadataKey(namespace string, startingTxID strin
 
 func (n *Network) Ledger() (driver.Ledger, error) {
 	return n.ledger, nil
+}
+
+func (n *Network) ProcessNamespace(namespace string) error {
+	if err := n.ch.Committer().ProcessNamespace(namespace); err != nil {
+		return errors.WithMessagef(err, "failed to register processing of namespace [%s]", namespace)
+	}
+	return nil
 }
